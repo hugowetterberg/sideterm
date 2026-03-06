@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -58,8 +59,8 @@ func main() {
 			log.Printf("handle project %q: %v", projectName, err)
 		}
 
-		// Refocus Emacs so kitty doesn't steal focus.
-		_, err = i3.RunCommand("[class=Emacs] focus")
+		// Refocus the exact Emacs window that triggered the event.
+		_, err = i3.RunCommand(fmt.Sprintf("[con_id=%d] focus", ev.Container.ID))
 		if err != nil {
 			log.Printf("refocus emacs: %v", err)
 		}
