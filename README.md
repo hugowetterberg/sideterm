@@ -17,6 +17,6 @@ My emacs config includes this little snippet for exposing the project name and p
 
 Here already things start to get very customised to my emacs setup, I use [one-tab-per-project](https://github.com/abougouffa/one-tab-per-project) to make it easier to work with a bunch of things in parallel (hence my need to swap terminals in sync with switching projects).
 
-Then I start kitty with remote control over a unix socket: `kitty -o allow_remote_control=yes -o enabled_layouts=all --listen-on=unix:$HOME/tmp/emacs-kitty` and place that terminal next to emacs. I use that initial terminal window to start sideterm.
+When sideterm starts it launches a kitty instance with remote control enabled over a unix socket at `$HOME/tmp/emacs-kitty` (cleaning up any stale socket from a previous run first). Place that kitty window next to emacs.
 
-Sideterm opens an IPC connection to i3 to listen for Emacs window title changes. When it sees a title matching the pattern of project name + path it makes sure that kitty has a tab named after the project with two terminal windows in a horizontal split.
+Sideterm then opens an IPC connection to i3 to listen for Emacs window title changes. When it sees a title matching the pattern of project name + path it makes sure that kitty has a tab named after the project with two terminal windows in a horizontal split.

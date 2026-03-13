@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,6 +21,11 @@ func main() {
 	}
 
 	socketPath := filepath.Join(home, "tmp", "emacs-kitty")
+
+	err = startKitty(socketPath)
+	if err != nil {
+		log.Fatalf("start kitty: %v", err)
+	}
 
 	recv := i3.Subscribe(i3.WindowEventType)
 
@@ -70,6 +76,38 @@ func main() {
 	if err != nil {
 		log.Fatalf("subscribe: %v", err)
 	}
+}
+
+func startKitty(socketPath string) error {
+	// Clean up any stale socket from a previous run.
+	err := os.Remove(socketPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove stale socket: %w", err)
+	}
+
+	// Ensure the socket parent directory exists.
+	err = os.MkdirAll(filepath.Dir(socketPath), 0o700)
+	if err != nil {
+		return fmt.Errorf("create socket directory: %w", err)
+	}
+
+	cmd := exec.Command("kitty",
+		"-o", "allow_remote_control=yes",
+		"-o", "enabled_layouts=all",
+		"--listen-on=unix:"+socketPath,
+	)
+
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("launch kitty: %w", err)
+	}
+
+	// Detach — kitty runs independently.
+	go func() {
+		_ = cmd.Wait()
+	}()
+
+	return nil
 }
 
 func handleProject(socketPath, projectName, projectPath string) error {
