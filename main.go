@@ -22,7 +22,7 @@ func main() {
 
 	socketPath := filepath.Join(home, "tmp", "emacs-kitty")
 
-	err = startKitty(socketPath)
+	kittyPID, err := startKitty(socketPath)
 	if err != nil {
 		log.Fatalf("start kitty: %v", err)
 	}
@@ -60,6 +60,24 @@ func main() {
 			continue
 		}
 
+		// Only react to Emacs windows on the same workspace as kitty.
+		root, treeErr := getI3Tree()
+		if treeErr != nil {
+			log.Printf("get i3 tree: %v", treeErr)
+			continue
+		}
+
+		emacsWS := findWorkspace(root, "", func(n *i3Node) bool {
+			return n.ID == int64(ev.Container.ID)
+		})
+		kittyWS := findWorkspace(root, "", func(n *i3Node) bool {
+			return n.PID == kittyPID
+		})
+
+		if emacsWS == "" || kittyWS == "" || emacsWS != kittyWS {
+			continue
+		}
+
 		err := handleProject(socketPath, projectName, projectPath)
 		if err != nil {
 			log.Printf("handle project %q: %v", projectName, err)
@@ -78,17 +96,17 @@ func main() {
 	}
 }
 
-func startKitty(socketPath string) error {
+func startKitty(socketPath string) (int, error) {
 	// Clean up any stale socket from a previous run.
 	err := os.Remove(socketPath)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("remove stale socket: %w", err)
+		return 0, fmt.Errorf("remove stale socket: %w", err)
 	}
 
 	// Ensure the socket parent directory exists.
 	err = os.MkdirAll(filepath.Dir(socketPath), 0o700)
 	if err != nil {
-		return fmt.Errorf("create socket directory: %w", err)
+		return 0, fmt.Errorf("create socket directory: %w", err)
 	}
 
 	cmd := exec.Command("kitty",
@@ -99,15 +117,17 @@ func startKitty(socketPath string) error {
 
 	err = cmd.Start()
 	if err != nil {
-		return fmt.Errorf("launch kitty: %w", err)
+		return 0, fmt.Errorf("launch kitty: %w", err)
 	}
+
+	pid := cmd.Process.Pid
 
 	// Detach — kitty runs independently.
 	go func() {
 		_ = cmd.Wait()
 	}()
 
-	return nil
+	return pid, nil
 }
 
 func handleProject(socketPath, projectName, projectPath string) error {
