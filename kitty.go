@@ -30,7 +30,8 @@ type Tab struct {
 
 // osWindow is the top-level structure returned by kitty ls.
 type osWindow struct {
-	Tabs []Tab `json:"tabs"`
+	PlatformWindowID int64 `json:"platform_window_id"`
+	Tabs             []Tab `json:"tabs"`
 }
 
 func sendCommand(socketPath string, cmd string, payload any) (json.RawMessage, error) {
@@ -99,10 +100,10 @@ func sendCommand(socketPath string, cmd string, payload any) (json.RawMessage, e
 	return resp.Data, nil
 }
 
-func listTabs(socketPath string) ([]Tab, error) {
+func listOSWindows(socketPath string) ([]osWindow, error) {
 	data, err := sendCommand(socketPath, "ls", nil)
 	if err != nil {
-		return nil, fmt.Errorf("list tabs: %w", err)
+		return nil, fmt.Errorf("list os windows: %w", err)
 	}
 
 	// The data field is a JSON-encoded string containing the actual JSON array.
@@ -116,6 +117,15 @@ func listTabs(socketPath string) ([]Tab, error) {
 	err = json.Unmarshal([]byte(lsJSON), &osWindows)
 	if err != nil {
 		return nil, fmt.Errorf("parse ls response: %w", err)
+	}
+
+	return osWindows, nil
+}
+
+func listTabs(socketPath string) ([]Tab, error) {
+	osWindows, err := listOSWindows(socketPath)
+	if err != nil {
+		return nil, err
 	}
 
 	var tabs []Tab

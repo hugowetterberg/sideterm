@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-// i3Node is a minimal i3 tree node that includes PID, which the i3 library's
-// Node struct omits.
+// i3Node is a minimal i3 tree node. The Window field is the X11 window ID,
+// which the i3 library's Node struct also omits.
 type i3Node struct {
 	ID               int64            `json:"id"`
 	Type             string           `json:"type"`
 	Name             string           `json:"name"`
-	PID              int              `json:"pid"`
+	Window           int64            `json:"window"`
 	WindowProperties windowProperties `json:"window_properties"`
 	Nodes            []*i3Node        `json:"nodes"`
 	FloatingNodes    []*i3Node        `json:"floating_nodes"`
@@ -53,7 +53,7 @@ func findWorkspace(node *i3Node, ws string, predicate func(*i3Node) bool) string
 }
 
 // getI3Tree fetches the i3 layout tree via raw IPC so that we can access the
-// PID field that the Go i3 library doesn't expose.
+// window ID field that the Go i3 library doesn't expose.
 func getI3Tree() (*i3Node, error) {
 	out, err := exec.Command("i3", "--get-socketpath").Output()
 	if err != nil {

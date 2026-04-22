@@ -22,7 +22,7 @@ func main() {
 
 	socketPath := filepath.Join(home, "tmp", "emacs-kitty")
 
-	kittyPID, err := startKitty(socketPath)
+	err = startKitty(socketPath)
 	if err != nil {
 		log.Fatalf("start kitty: %v", err)
 	}
@@ -61,6 +61,17 @@ func main() {
 		}
 
 		// Only react to Emacs windows on the same workspace as kitty.
+		kittyWindows, err := listOSWindows(socketPath)
+		if err != nil {
+			log.Printf("list kitty os windows: %v", err)
+			continue
+		}
+
+		kittyWindowIDs := make(map[int64]bool, len(kittyWindows))
+		for _, ow := range kittyWindows {
+			kittyWindowIDs[ow.PlatformWindowID] = true
+		}
+
 		root, treeErr := getI3Tree()
 		if treeErr != nil {
 			log.Printf("get i3 tree: %v", treeErr)
@@ -71,14 +82,16 @@ func main() {
 			return n.ID == int64(ev.Container.ID)
 		})
 		kittyWS := findWorkspace(root, "", func(n *i3Node) bool {
-			return n.PID == kittyPID
+			return n.Window != 0 && kittyWindowIDs[n.Window]
 		})
 
 		if emacsWS == "" || kittyWS == "" || emacsWS != kittyWS {
+			log.Printf("skip %q: emacs on %q, kitty on %q",
+				projectName, emacsWS, kittyWS)
 			continue
 		}
 
-		err := handleProject(socketPath, projectName, projectPath)
+		err = handleProject(socketPath, projectName, projectPath)
 		if err != nil {
 			log.Printf("handle project %q: %v", projectName, err)
 		}
@@ -96,17 +109,17 @@ func main() {
 	}
 }
 
-func startKitty(socketPath string) (int, error) {
+func startKitty(socketPath string) error {
 	// Clean up any stale socket from a previous run.
 	err := os.Remove(socketPath)
 	if err != nil && !os.IsNotExist(err) {
-		return 0, fmt.Errorf("remove stale socket: %w", err)
+		return fmt.Errorf("remove stale socket: %w", err)
 	}
 
 	// Ensure the socket parent directory exists.
 	err = os.MkdirAll(filepath.Dir(socketPath), 0o700)
 	if err != nil {
-		return 0, fmt.Errorf("create socket directory: %w", err)
+		return fmt.Errorf("create socket directory: %w", err)
 	}
 
 	cmd := exec.Command("kitty",
@@ -117,17 +130,21 @@ func startKitty(socketPath string) (int, error) {
 
 	err = cmd.Start()
 	if err != nil {
-		return 0, fmt.Errorf("launch kitty: %w", err)
+		return fmt.Errorf("launch kitty: %w", err)
 	}
 
-	pid := cmd.Process.Pid
-
-	// Detach — kitty runs independently.
+	// When kitty exits, so do we.
 	go func() {
-		_ = cmd.Wait()
+		err := cmd.Wait()
+		if err != nil {
+			log.Printf("kitty exited: %v", err)
+			os.Exit(1)
+		}
+
+		os.Exit(0)
 	}()
 
-	return pid, nil
+	return nil
 }
 
 func handleProject(socketPath, projectName, projectPath string) error {
